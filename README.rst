@@ -263,25 +263,49 @@ to relax any remaining contact overlaps between the receptor, ligand, and amphip
 
    gmx mdrun -v -deffnm em
 
-2. Solvation & Neutralization
------------------------------
+2. Explicit Water Solvation & Neutralization
+--------------------------------------------
 
-Defines a rhombic dodecahedral simulation box with 1.5 nm clearance to accommodate the
-ligand unbinding trajectory:
+The complex is solvated using an explicit 3-site water model (TIP3P) and neutralized
+with physiological counterions (0.15 M NaCl).
+
+Explicit Water Mechanics in GROMACS:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When running ``gmx solvate``:
+
+- **``-cp box.gro`` (Configuration Protein/Solute)**: Specifies the solute structure
+  containing the receptor, docked ligand, and amphipol belt.
+- **``-cs spc216.gro`` (Configuration Solvent)**: Specifies the explicit solvent template.
+  GROMACS bundles pre-equilibrated coordinate lattices in its shared library directory
+  (``$GMXDATA/top/``). You **do not** need to download or provide external water PDB/GRO files;
+  GROMACS resolves ``spc216.gro`` automatically from its installation path. (If ``-cs`` is
+  omitted, GROMACS defaults to ``spc216.gro``).
+- **Model Parameter Inheritance**: While ``spc216.gro`` provides the spatial 3-site coordinate
+  geometry, the actual interaction parameters (charges, bond lengths, angles, and Lennard-Jones
+  coefficients) are inherited from the ``#include "amber99sb-ildn.ff/tip3p.itp"`` directive
+  configured in ``topol.top`` during receptor preparation (``pdb2gmx -water tip3p``).
+- **Alternative Explicit Models**: If using a 4-site model (e.g., TIP4P or TIP4P-Ew) or 5-site
+  model (TIP5P), pass the corresponding bundled coordinate file: ``-cs tip4p.gro`` or ``-cs tip5p.gro``.
+
+Execution Commands:
+~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   # Define periodic box
+   # Step A: Define periodic boundary box with 1.5 nm clearance for ligand unbinding
    gmx editconf -f complex_amphipol.gro -o box.gro -c -d 1.5 -bt dodecahedron
 
-   # Solvate with water
+   # Step B: Solvate with explicit 3-site water (updates [ molecules ] in topol.top)
    gmx solvate -cp box.gro -cs spc216.gro -o solv.gro -p topol.top
 
-   # Add neutralizing counterions (0.15 M NaCl)
+   # Step C: Compile ionization input
    gmx grompp -f em.mdp -c solv.gro -p topol.top -o ions.tpr -maxwarn 1
+
+   # Step D: Replace solvent molecules with ions (0.15 M NaCl + counterions for net neutrality)
    echo "SOL" | gmx genion -s ions.tpr -o solv_ions.gro -p topol.top -pname NA -nname CL -neutral -conc 0.15
 
-   # Re-minimize solvated system
+   # Step E: Re-minimize the solvated, ionized system to relax water and ion positions
    gmx grompp -f em.mdp -c solv_ions.gro -p topol.top -o em.tpr
    gmx mdrun -v -deffnm em
 
