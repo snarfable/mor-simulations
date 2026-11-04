@@ -1,0 +1,18 @@
+# PLUMED input for 12-bromo-7-hydroxymitragynine binding/unbinding umbrella sampling
+# Tracks the center-of-mass distance between the MOR orthosteric binding pocket and the ligand
+
+# 1. Define orthosteric binding pocket C-alpha atoms (Asp147, Tyr148, Met151, Trp293, Val300, Tyr326)
+pocket: COM ATOMS=1316,1328,1384,3734,3862,4281
+
+# 2. Define ligand heavy atoms (atoms 4610 through 4669)
+ligand: COM ATOMS=4610-4669
+
+# 3. Calculate distance between binding pocket center and ligand center of mass
+d_bind: DISTANCE ATOMS=pocket,ligand
+
+# 4. Print collective variable to COLVAR file every 10 steps
+PRINT ARG=d_bind FILE=COLVAR_BIND STRIDE=10
+
+# 5. Harmonic umbrella sampling restraint (Example: window centered at 0.50 nm)
+# To be adjusted per umbrella window:
+restraint: RESTRAINT ARG=d_bind AT=0.50 KAPPA=1000.0

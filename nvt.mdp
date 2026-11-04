@@ -1,0 +1,45 @@
+; NVT Equilibration (Constant Number, Volume, Temperature)
+integrator              = md            ; Leap-frog integrator
+nsteps                  = 50000         ; 50000 * 0.002 = 100 ps
+dt                      = 0.002         ; 2 fs time step
+
+; Output control
+nstxout-compressed      = 5000          ; Save coordinates every 10.0 ps
+nstenergy               = 5000          ; Save energies every 10.0 ps
+nstlog                  = 5000          ; Update log file every 10.0 ps
+
+; Bond parameters
+continuation            = no            ; Initial simulation run
+constraint_algorithm    = lincs         ; Holonomic constraints
+constraints             = h-bonds       ; Bonds involving H are constrained
+lincs_iter              = 1             ; Accuracy of LINCS
+lincs_order             = 4             ; Order of LINCS polynomial
+
+; Nonbonded settings
+cutoff-scheme           = Verlet
+nstlist                 = 20
+rcoulomb                = 1.0
+rvdw                    = 1.0
+coulombtype             = PME
+pme_order               = 4
+fourierspacing          = 0.16
+
+; Temperature coupling
+tcoupl                  = v-rescale                     ; Modified Berendsen thermostat
+tc-grps                 = Protein_ligand_3d Water_and_ions ; Two coupling groups
+tau_t                   = 0.1     0.1                   ; Time constant (ps)
+ref_t                   = 310     310                   ; Reference temperature (K)
+
+; Pressure coupling is off in NVT
+pcoupl                  = no
+
+; Periodic boundary conditions
+pbc                     = xyz
+
+; Velocity generation
+gen_vel                 = yes           ; Assign velocities from Maxwell distribution
+gen_temp                = 310           ; Temperature for Maxwell distribution
+gen_seed                = -1            ; Generate a random seed
+
+; Restraints
+define                  = -DPOSRES      ; Position restrain the protein/ligand heavy atoms

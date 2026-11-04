@@ -1,0 +1,48 @@
+; NPT Equilibration (Constant Number, Pressure, Temperature)
+integrator              = md
+nsteps                  = 50000         ; 100 ps
+dt                      = 0.002
+
+; Output control
+nstxout-compressed      = 5000
+nstenergy               = 5000
+nstlog                  = 5000
+
+; Bond parameters
+continuation            = yes           ; Restarting after NVT
+constraint_algorithm    = lincs
+constraints             = h-bonds
+lincs_iter              = 1
+lincs_order             = 4
+
+; Nonbonded settings
+cutoff-scheme           = Verlet
+nstlist                 = 20
+rcoulomb                = 1.0
+rvdw                    = 1.0
+coulombtype             = PME
+pme_order               = 4
+fourierspacing          = 0.16
+
+; Temperature coupling
+tcoupl                  = v-rescale
+tc-grps                 = Protein_ligand_3d Water_and_ions
+tau_t                   = 0.1     0.1
+ref_t                   = 310     310
+
+; Pressure coupling
+pcoupl                  = C-rescale                     ; Parrinello-Rahman or C-rescale
+pcoupltype              = isotropic                     ; Use semiisotropic if embedded in lipid bilayer
+tau_p                   = 2.0                           ; Time constant (ps)
+ref_p                   = 1.0                           ; Reference pressure (bar)
+compressibility         = 4.5e-5                        ; Isothermal compressibility of water (bar^-1)
+refcoord_scaling        = com
+
+; Periodic boundary conditions
+pbc                     = xyz
+
+; Velocity generation
+gen_vel                 = no            ; Read velocities from NVT
+
+; Restraints
+define                  = -DPOSRES      ; Continue position restraining heavy atoms

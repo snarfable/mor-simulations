@@ -1,0 +1,61 @@
+; Production Molecular Dynamics with Native GROMACS AWH (Accelerated Weight Histogram)
+; Useful for path sampling along defined collective variables without PLUMED
+integrator              = md
+nsteps                  = 10000000      ; 20 ns
+dt                      = 0.002
+
+; Output control
+nstxout-compressed      = 5000
+nstenergy               = 5000
+nstlog                  = 5000
+
+; Bond parameters
+continuation            = yes
+constraint_algorithm    = lincs
+constraints             = h-bonds
+
+; Nonbonded settings
+cutoff-scheme           = Verlet
+nstlist                 = 20
+rcoulomb                = 1.0
+rvdw                    = 1.0
+coulombtype             = PME
+
+; Temperature coupling
+tcoupl                  = v-rescale
+tc-grps                 = Protein_ligand_3d Water_and_ions
+tau_t                   = 0.1     0.1
+ref_t                   = 310     310
+
+; Pressure coupling
+pcoupl                  = Parrinello-Rahman
+pcoupltype              = isotropic
+tau_p                   = 2.0
+ref_p                   = 1.0
+compressibility         = 4.5e-5
+
+; Free energy / AWH settings (Example configuration)
+awh                     = yes
+awh-potential           = umbrella
+awh-share-multisim      = no
+awh-nbias               = 1
+awh1-growth             = exp-linear
+awh1-equilibrate-histogram = yes
+awh1-error-init         = 5.0
+awh1-ndim               = 1
+awh1-dim1-coord-index   = 1
+awh1-dim1-start         = 0.6           ; Start distance (nm)
+awh1-dim1-end           = 1.6           ; End distance (nm)
+awh1-dim1-force-constant= 10000.0       ; Harmonic force constant (kJ/mol/nm^2)
+
+; Pull code settings used by AWH
+pull                    = yes
+pull-ngroups            = 2
+pull-ncoords            = 1
+pull-group1-name        = r_165_&_CA    ; Example atom group name for TM3 (Arg165 CA)
+pull-group2-name        = r_279_&_CA    ; Example atom group name for TM6 (Thr279 CA)
+pull-coord1-type        = external-potential
+pull-coord1-potential-provider = awh
+pull-coord1-geometry    = distance
+pull-coord1-groups      = 1 2
+pull-coord1-dim         = Y Y Y

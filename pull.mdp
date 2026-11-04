@@ -1,0 +1,58 @@
+; Steered Molecular Dynamics (SMD) Pulling for 12-bromo-7-hydroxymitragynine unbinding
+integrator              = md
+nsteps                  = 500000        ; 1000 ps (1.0 ns)
+dt                      = 0.002
+
+; Output control
+nstxout-compressed      = 1000          ; Save coordinates every 2 ps
+nstenergy               = 1000
+nstlog                  = 1000
+
+; Bond parameters
+continuation            = yes
+constraint_algorithm    = lincs
+constraints             = h-bonds
+lincs_iter              = 1
+lincs_order             = 4
+
+; Nonbonded settings
+cutoff-scheme           = Verlet
+nstlist                 = 20
+rcoulomb                = 1.0
+rvdw                    = 1.0
+coulombtype             = PME
+
+; Temperature coupling
+tcoupl                  = v-rescale
+tc-grps                 = Solute_Complex Water_and_ions
+tau_t                   = 0.1     0.1
+ref_t                   = 310     310
+
+; Pressure coupling
+pcoupl                  = Parrinello-Rahman
+pcoupltype              = isotropic
+tau_p                   = 2.0
+ref_p                   = 1.0
+compressibility         = 4.5e-5
+
+; Periodic boundary conditions
+pbc                     = xyz
+
+; Restraints: restrain receptor heavy atoms to allow clean pulling along binding axis
+define                  = -DPOSRES
+
+; Pull code settings for ligand unbinding
+pull                    = yes
+pull-ngroups            = 2
+pull-ncoords            = 1
+pull-group1-name        = Binding_Pocket
+pull-group2-name        = Ligand
+pull-coord1-type        = umbrella
+pull-coord1-geometry    = distance
+pull-coord1-groups      = 1 2
+pull-coord1-dim         = Y Y Y
+pull-coord1-rate        = 0.002         ; 0.002 nm/ps = 2.0 nm per 1000 ps
+pull-coord1-k           = 1000.0        ; Force constant (kJ/mol/nm^2)
+pull-coord1-start       = yes           ; Define initial distance from starting coordinates (~0.4 nm)
+pull-nstxout            = 50            ; Output pull distance every 0.1 ps
+pull-nstfout            = 50            ; Output pull force every 0.1 ps

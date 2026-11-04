@@ -1,0 +1,7 @@
+# PLUMED input for MOR activation reaction coordinate
+# Tracks the intracellular distance between TM3 and TM6 (Arg165 to Thr279)
+c1: COM ATOMS=Arg165_CA_index
+c2: COM ATOMS=Thr279_CA_index
+d_TM3_TM6: DISTANCE ATOMS=c1,c2
+PRINT ARG=d_TM3_TM6 FILE=COLVAR STRIDE=10
+METAD ARG=d_TM3_TM6 SIGMA=0.1 HEIGHT=1.2 PACE=500 LABEL=metad
