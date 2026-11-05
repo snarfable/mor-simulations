@@ -21,7 +21,8 @@ rm -rf receptor.pdb damgo.pdb receptor_fixed.pdb conf.gro posre.itp topol.top \
        ligand_docked.pdb ligand_docked.acpype \
        apol_single.pdb apol.acpype \
        complex_amphipol.gro extra_atomtypes.itp ligand.itp apol.itp \
-       index.ndx window_* run.tpr mdout.mdp \
+       index.ndx window_* complex-em.tpr mdout.mdp \
+       solv-em.tpr solv-ion.tpr solv.gro ions.tpr \
        tpr_files.dat pullf_files.dat
 
 # Optional flag: pass --all to also remove the Python virtual environment (.venv)

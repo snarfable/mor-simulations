@@ -11,7 +11,7 @@ These groups are used for GROMACS pull code and umbrella sampling.
 
 import sys
 
-def make_index(gro_file='complex_amphipol.gro', out_ndx='index.ndx'):
+def make_index(gro_file='solv-em.gro', out_ndx='index.ndx'):
     with open(gro_file, 'r') as f:
         lines = f.readlines()
 
@@ -19,6 +19,8 @@ def make_index(gro_file='complex_amphipol.gro', out_ndx='index.ndx'):
     ligand_atoms = []
     protein_atoms = []
     amphipol_atoms = []
+    water_atoms = []
+    ion_atoms = []
 
     for line in lines[2:-1]:
         res_num = int(line[0:5])
@@ -30,12 +32,17 @@ def make_index(gro_file='complex_amphipol.gro', out_ndx='index.ndx'):
             amphipol_atoms.append(atom_num)
         elif res_name == 'UNL':
             ligand_atoms.append(atom_num)
+        elif res_name == 'SOL':
+            water_atoms.append(atom_num)
+        elif res_name == 'NA' or res_name == 'CL':
+            ion_atoms.append(atom_num)
         else:
             protein_atoms.append(atom_num)
             if res_num in (147, 148, 151, 293, 300, 326) and atom_name == 'CA':
                 pocket_ca.append(atom_num)
 
     complex_atoms = protein_atoms + amphipol_atoms + ligand_atoms
+    water_ion_atoms = water_atoms + ion_atoms
 
     def write_group(f, name, atom_list):
         f.write(f"[ {name} ]\n")
@@ -53,11 +60,19 @@ def make_index(gro_file='complex_amphipol.gro', out_ndx='index.ndx'):
         write_group(f, 'Protein', protein_atoms)
         write_group(f, 'Amphipol', amphipol_atoms)
         write_group(f, 'Solute_Complex', complex_atoms)
+        write_group(f, 'Protein_ligand_3d', complex_atoms)
+        write_group(f, 'Water', water_atoms)
+        write_group(f, 'Ions', ion_atoms)
+        write_group(f, 'Water_and_ions', water_ion_atoms)
 
     print(f"Generated {out_ndx}:")
     print(f"  - Binding_Pocket: {len(pocket_ca)} atoms ({pocket_ca})")
     print(f"  - Ligand: {len(ligand_atoms)} atoms")
     print(f"  - Solute_Complex: {len(complex_atoms)} atoms")
+    print(f"  - Protein_ligand_3d: {len(complex_atoms)} atoms")
+    print(f"  - Water: {len(water_atoms)} atoms")
+    print(f"  - Ions: {len(ion_atoms)} atoms")
+    print(f"  - Water_and_ions: {len(water_ion_atoms)} atoms")
 
 if __name__ == '__main__':
     make_index()

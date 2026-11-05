@@ -45,8 +45,20 @@ echo "=== 11. Initializing umbrella sampling window templates ==="
 python3 setup_umbrella_windows.py
 
 echo "=== 12. Compiling initial simulation binary with gmx grompp ==="
-gmx grompp -f em.mdp -c complex_amphipol.gro -p topol.top -o run.tpr -maxwarn 1
+gmx grompp -f em.mdp -c complex_amphipol.gro -p topol.top -o complex-em.tpr -maxwarn 1
+gmx mdrun -v -deffnm complex-em -s complex-em.tpr
 
 echo "=========================================================================="
 echo " Setup completed successfully! System is ready for solvation & sampling."
 echo "=========================================================================="
+
+echo "=== 13. Generating dodecahedron bounding box and PBCs ==="
+gmx editconf -f complex-em.gro -o box.gro -c -d 1.5 -bt dodecahedron
+gmx solvate -cp box.gro -cs spc216.gro -o solv.gro -p topol.top
+gmx grompp -f em.mdp -c solv.gro -p topol.top -o ions.tpr -maxwarn 1
+echo "SOL" | gmx genion -s ions.tpr -o solv-ions.gro -p topol.top -pname NA -nname CL -neutral -conc 0.15
+gmx grompp -f em.mdp -c solv-ions.gro -p topol.top -o solv-em.tpr
+gmx mdrun -v -deffnm solv-em -s solv-em.tpr
+gmx grompp -f nvt.mdp -c solv-em.gro -p topol.top -o solv-nvt.tpr
+gmx mdrun -v -deffnm solv-nvt -s solv-nvt.tpr
+
