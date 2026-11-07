@@ -20,7 +20,7 @@ add_custom_command(
         --apol-itp "${APOL_ITP}"
         --out-gro "${COMPLEX_GRO}"
         --top-file "${ASSEMBLED_TOP}"
-    DEPENDS 04_receptor_topology 06_ligand_params 07_build_amphipol
+    DEPENDS 04_receptor_topology 06_ligand_params 07_build_amphipol python_dependencies
             "${RECEPTOR_CONF_GRO}" "${RECEPTOR_TOPOL_TOP}" "${RECEPTOR_POSRE_ITP}"
             "${LIGAND_GRO}" "${LIGAND_ITP}"
             "${APOL_GRO}" "${APOL_ITP}"
@@ -29,7 +29,7 @@ add_custom_command(
     COMMENT "Assembling MOR-Amphipol-Ligand complex and integrating topologies"
 )
 
-add_custom_target(08_assemble_system DEPENDS "${COMPLEX_GRO}" "${ASSEMBLED_TOP}" "${EXTRA_ATOMTYPES_ITP}" "${LIGAND_ITP_OUT}" "${APOL_ITP_OUT}" "${POSRE_ITP_OUT}")
+add_custom_target(08_assemble_system DEPENDS python_dependencies "${COMPLEX_GRO}" "${ASSEMBLED_TOP}" "${EXTRA_ATOMTYPES_ITP}" "${LIGAND_ITP_OUT}" "${APOL_ITP_OUT}" "${POSRE_ITP_OUT}")
 set(COMPLEX_GRO "${COMPLEX_GRO}" PARENT_SCOPE)
 set(ASSEMBLED_TOP "${ASSEMBLED_TOP}" PARENT_SCOPE)
 set(EXTRA_ATOMTYPES_ITP "${EXTRA_ATOMTYPES_ITP}" PARENT_SCOPE)

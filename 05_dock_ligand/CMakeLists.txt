@@ -9,12 +9,12 @@ add_custom_command(
         --damgo "${DAMGO_PDB}"
         --receptor "${RECEPTOR_FIXED_PDB}"
         --output "${LIGAND_DOCKED_PDB}"
-    DEPENDS 02_extract_chains 03_rebuild_atoms
+    DEPENDS 02_extract_chains 03_rebuild_atoms python_dependencies
             "${DAMGO_PDB}" "${RECEPTOR_FIXED_PDB}"
             "${CMAKE_CURRENT_SOURCE_DIR}/dock_ligand.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMMENT "Docking 12-bromo-7-hydroxymitragynine into orthosteric pocket"
 )
 
-add_custom_target(05_dock_ligand DEPENDS "${LIGAND_DOCKED_PDB}")
+add_custom_target(05_dock_ligand DEPENDS python_dependencies "${LIGAND_DOCKED_PDB}")
 set(LIGAND_DOCKED_PDB "${LIGAND_DOCKED_PDB}" PARENT_SCOPE)

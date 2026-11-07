@@ -10,8 +10,48 @@ endif()
 
 # Discover required toolchains and interpreters
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-find_program(PDBFIXER_EXECUTABLE NAMES pdbfixer HINTS "${CMAKE_SOURCE_DIR}/.venv/bin" DOC "PDBFixer executable")
-find_program(ACPYPE_EXECUTABLE NAMES acpype HINTS "${CMAKE_SOURCE_DIR}/.venv/bin" DOC "ACPYPE executable")
+get_filename_component(Python3_BIN_DIR "${Python3_EXECUTABLE}" DIRECTORY)
+
+# Required Python packages for pipeline and GROMACS gmxapi / python bindings
+set(REQUIRED_PYTHON_PACKAGES
+    rdkit
+    mpi4py
+    pdbfixer
+    openmm
+    numpy
+    pybind11
+    pytest
+    acpype
+)
+
+# Target to install/verify Python dependencies
+add_custom_target(python_dependencies
+    COMMAND ${Python3_EXECUTABLE} -m pip install ${REQUIRED_PYTHON_PACKAGES}
+    COMMENT "Installing required Python dependencies (${REQUIRED_PYTHON_PACKAGES})"
+)
+add_custom_target(install_python_dependencies DEPENDS python_dependencies)
+
+# Configure-time check: verify if modules are already installed, install if missing
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import rdkit, mpi4py, pdbfixer, openmm, numpy, pybind11, pytest, acpype"
+    RESULT_VARIABLE _py_check_res
+    OUTPUT_QUIET
+    ERROR_QUIET
+)
+
+if(NOT _py_check_res EQUAL 0)
+    message(STATUS "Required Python packages missing. Installing via pip...")
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -m pip install ${REQUIRED_PYTHON_PACKAGES}
+        RESULT_VARIABLE _pip_install_res
+    )
+    if(NOT _pip_install_res EQUAL 0)
+        message(WARNING "Failed to install some Python packages via pip. Please ensure network connectivity or install manually.")
+    endif()
+endif()
+
+find_program(PDBFIXER_EXECUTABLE NAMES pdbfixer HINTS "${Python3_BIN_DIR}" "${CMAKE_SOURCE_DIR}/.venv/bin" DOC "PDBFixer executable")
+find_program(ACPYPE_EXECUTABLE NAMES acpype HINTS "${Python3_BIN_DIR}" "${CMAKE_SOURCE_DIR}/.venv/bin" DOC "ACPYPE executable")
 find_program(WGET_EXECUTABLE NAMES wget curl DOC "Downloader executable")
 
 # Fetch and build GROMACS in-source
@@ -78,6 +118,7 @@ add_subdirectory(15_production)
 # Master pipeline target
 add_custom_target(mor_pipeline ALL
     DEPENDS
+        python_dependencies
         01_download_pdb
         02_extract_chains
         03_rebuild_atoms

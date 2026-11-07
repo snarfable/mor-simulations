@@ -477,23 +477,27 @@ Or manage and run the build steps directly with CMake:
 
 .. code-block:: bash
 
-   # 1. Setup virtual environment
+   # 1. (Optional) Create virtual environment if desired:
    python3 -m venv .venv
    source .venv/bin/activate
-   pip install rdkit acpype pdbfixer openmm numpy mpi4py pytest
 
-   # 2. Configure project out-of-source (CPU default)
+   # 2. Configure project out-of-source:
+   # (CMake automatically detects and installs any missing Python packages
+   #  such as rdkit, mpi4py, pdbfixer, openmm, numpy, pybind11, pytest, acpype)
    cmake -B build
 
-   # 3. Configure with GPU compute and custom mdrun offload flags:
+   # 3. Explicitly install or update Python packages anytime via target:
+   cmake --build build --target python_dependencies
+
+   # 4. Configure with GPU compute and custom mdrun offload flags:
    # (When GMX_GPU is enabled and GMX_MDRUN_GPU_FLAGS is omitted, it defaults to:
    #  "-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu")
    cmake -B build -DGMX_GPU=CUDA -DGMX_MDRUN_GPU_FLAGS="-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu"
 
-   # 4. Build a specific stage (e.g., dock ligand, which builds all upstream prerequisites)
+   # 5. Build a specific stage (e.g., dock ligand, which builds all upstream prerequisites)
    cmake --build build --target 05_dock_ligand
 
-   # 5. Or execute the entire pipeline
+   # 6. Or execute the entire pipeline
    cmake --build build --target mor_pipeline
 
 Scientific References

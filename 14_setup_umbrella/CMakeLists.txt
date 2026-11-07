@@ -7,9 +7,9 @@ add_custom_command(
     OUTPUT "${UMBRELLA_DONE}"
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/setup_umbrella_windows.py" "pullx.xvg" "${CMAKE_CURRENT_SOURCE_DIR}/umbrella.mdp"
     COMMAND ${CMAKE_COMMAND} -E touch "${UMBRELLA_DONE}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/setup_umbrella_windows.py" "${CMAKE_CURRENT_SOURCE_DIR}/umbrella.mdp"
+    DEPENDS python_dependencies "${CMAKE_CURRENT_SOURCE_DIR}/setup_umbrella_windows.py" "${CMAKE_CURRENT_SOURCE_DIR}/umbrella.mdp"
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMMENT "Initializing umbrella sampling window templates"
 )
 
-add_custom_target(14_setup_umbrella DEPENDS "${UMBRELLA_DONE}")
+add_custom_target(14_setup_umbrella DEPENDS python_dependencies "${UMBRELLA_DONE}")
