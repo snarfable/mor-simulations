@@ -12,7 +12,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy "${APOL_ITP_OUT}" "${CMAKE_CURRENT_BINARY_DIR}/apol.itp"
     COMMAND ${CMAKE_COMMAND} -E copy "${POSRE_ITP_OUT}" "${CMAKE_CURRENT_BINARY_DIR}/posre.itp"
     COMMAND ${GMX_EXECUTABLE} grompp -f "${CMAKE_CURRENT_SOURCE_DIR}/nvt.mdp" -c "${SOLV_EM_GRO}" -r "${SOLV_EM_GRO}" -p "${CMAKE_CURRENT_BINARY_DIR}/topol.top" -n "${INDEX_NDX}" -o "${SOLV_NVT_TPR}"
-    COMMAND ${GMX_EXECUTABLE} mdrun -v -deffnm solv-nvt -s "${SOLV_NVT_TPR}" -c "${SOLV_NVT_GRO}"
+    COMMAND ${GMX_EXECUTABLE} mdrun -v -deffnm solv-nvt -s "${SOLV_NVT_TPR}" -c "${SOLV_NVT_GRO}" ${GMX_MDRUN_GPU_ARGS}
     DEPENDS 11_em_solv 12_make_index
             "${SOLV_EM_GRO}" "${SOLV_TOP}" "${INDEX_NDX}"
             "${EXTRA_ATOMTYPES_ITP}" "${LIGAND_ITP_OUT}" "${APOL_ITP_OUT}" "${POSRE_ITP_OUT}"

@@ -15,6 +15,7 @@ def make_index(gro_file='solv-em.gro', out_ndx='index.ndx'):
     with open(gro_file, 'r') as f:
         lines = f.readlines()
 
+    num_atoms = int(lines[1].strip())
     pocket_ca = []
     ligand_atoms = []
     protein_atoms = []
@@ -22,19 +23,21 @@ def make_index(gro_file='solv-em.gro', out_ndx='index.ndx'):
     water_atoms = []
     ion_atoms = []
 
-    for line in lines[2:-1]:
+    # In fixed-format .gro files, the atom number column (chars 15:20) is %5d,
+    # which rolls over modulo 100,000 (atom 100,000 becomes 0, atom 100,001 becomes 1).
+    # The true 1-based atom index corresponds to the sequential atom line position (1 to N).
+    for atom_num, line in enumerate(lines[2:2 + num_atoms], start=1):
         res_num = int(line[0:5])
         res_name = line[5:10].strip()
         atom_name = line[10:15].strip()
-        atom_num = int(line[15:20])
 
-        if res_name == 'APOL':
+        if res_name == 'APOL' or (res_name == 'UNL' and res_num > 346):
             amphipol_atoms.append(atom_num)
         elif res_name == 'UNL':
             ligand_atoms.append(atom_num)
         elif res_name == 'SOL':
             water_atoms.append(atom_num)
-        elif res_name == 'NA' or res_name == 'CL':
+        elif res_name in ('NA', 'CL'):
             ion_atoms.append(atom_num)
         else:
             protein_atoms.append(atom_num)
@@ -46,12 +49,10 @@ def make_index(gro_file='solv-em.gro', out_ndx='index.ndx'):
 
     def write_group(f, name, atom_list):
         f.write(f"[ {name} ]\n")
-        for i, atom in enumerate(atom_list):
-            f.write(f"{atom:6d}")
-            if (i + 1) % 10 == 0:
-                f.write("\n")
-        if len(atom_list) % 10 != 0:
-            f.write("\n")
+        # Ensure spaces between numbers so 6+ digit atom indices do not merge together
+        for i in range(0, len(atom_list), 15):
+            chunk = atom_list[i:i + 15]
+            f.write(" " + " ".join(str(a) for a in chunk) + "\n")
         f.write("\n")
 
     with open(out_ndx, 'w') as f:

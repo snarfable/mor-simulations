@@ -186,7 +186,7 @@ def assemble_system(
 
     with open('apol.itp', 'w') as f:
         f.write("; Amphipol A8-35 moleculetype and parameters\n[ moleculetype ]\n")
-        f.writelines(apol_mol)
+        f.writelines([line.replace(' UNL ', ' APOL ') for line in apol_mol])
 
     # 4. Update topol.top
     with open(top_file, 'r') as f:

@@ -24,6 +24,23 @@ set(GMX_BUILD_OWN_FFTW ON CACHE BOOL "" FORCE)
 set(GMX_TMPI ON CACHE BOOL "" FORCE)
 set(GMX_OPENMP ON CACHE BOOL "" FORCE)
 
+# GPU acceleration and mdrun runtime flags
+if(NOT DEFINED GMX_GPU OR GMX_GPU STREQUAL "ON")
+    set(GMX_GPU OFF CACHE STRING "Enable GPU acceleration in GROMACS (CUDA, OpenCL, SYCL, HIP, or OFF)" FORCE)
+else()
+    set(GMX_GPU "${GMX_GPU}" CACHE STRING "Enable GPU acceleration in GROMACS (CUDA, OpenCL, SYCL, HIP, or OFF)")
+endif()
+set_property(CACHE GMX_GPU PROPERTY STRINGS OFF CUDA OpenCL SYCL HIP)
+
+set(GMX_MDRUN_GPU_FLAGS "" CACHE STRING "GPU-related flags to pass to gmx mdrun (e.g. '-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu')")
+
+# If GMX_GPU is enabled (not OFF) and user did not specify custom GMX_MDRUN_GPU_FLAGS, set default GPU offload flags
+if(NOT GMX_GPU STREQUAL "OFF" AND NOT GMX_MDRUN_GPU_FLAGS)
+    set(GMX_MDRUN_GPU_FLAGS "-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu" CACHE STRING "GPU-related flags to pass to gmx mdrun" FORCE)
+endif()
+
+separate_arguments(GMX_MDRUN_GPU_ARGS NATIVE_COMMAND "${GMX_MDRUN_GPU_FLAGS}")
+
 FetchContent_Declare(
     gromacs
     GIT_REPOSITORY https://github.com/gromacs/gromacs.git
@@ -34,10 +51,12 @@ FetchContent_MakeAvailable(gromacs)
 
 set(GMX_EXECUTABLE gmx)
 
-message(STATUS "Using Python:    ${Python3_EXECUTABLE}")
-message(STATUS "Using GROMACS:   Target ${GMX_EXECUTABLE} (FetchContent)")
-message(STATUS "Using PDBFixer:  ${PDBFIXER_EXECUTABLE}")
-message(STATUS "Using ACPYPE:    ${ACPYPE_EXECUTABLE}")
+message(STATUS "Using Python:            ${Python3_EXECUTABLE}")
+message(STATUS "Using GROMACS:           Target ${GMX_EXECUTABLE} (FetchContent)")
+message(STATUS "Using PDBFixer:          ${PDBFIXER_EXECUTABLE}")
+message(STATUS "Using ACPYPE:            ${ACPYPE_EXECUTABLE}")
+message(STATUS "GMX_GPU:                 ${GMX_GPU}")
+message(STATUS "GMX_MDRUN_GPU_FLAGS:     ${GMX_MDRUN_GPU_FLAGS}")
 
 # Add step subdirectories in pipeline order
 add_subdirectory(01_download_pdb)

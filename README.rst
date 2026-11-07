@@ -83,98 +83,123 @@ Rationale for Amphipol Augmentation:
   require significantly fewer atoms than large phospholipid bilayers (e.g., POPC/cholesterol)
   and avoid long multi-nanosecond bilayer area-per-lipid equilibration times.
 
-The script ``build_amphipol.py`` generates representative 3D Amphipol A8-35 chains and
-parameterizes them with GAFF2/AMBER via ACPYPE. The script ``assemble_system.py``
-detects the transmembrane region of MOR (:math:`Z \in [11.8, 13.8]\text{ nm}`, radius
-:math:`R \approx 2.65\text{ nm}`) and positions 6 amphipol chains concentrically around
-the receptor, with hydrophobic side chains facing inward and carboxylates facing outward.
+The script ``07_build_amphipol/build_amphipol.py`` generates representative 3D Amphipol A8-35
+chains and parameterizes them with GAFF2/AMBER via ACPYPE. The script
+``08_assemble_system/assemble_system.py`` detects the transmembrane region of MOR
+(:math:`Z \in [11.8, 13.8]\text{ nm}`, radius :math:`R \approx 2.65\text{ nm}`) and
+positions 6 amphipol chains concentrically around the receptor, with hydrophobic side chains
+facing inward and carboxylates facing outward.
 
-Automated Pipeline (`setup_mor_simulation.sh`)
-==============================================
+Modular CMake Build System & Pipeline
+=====================================
 
-The end-to-end preparation is coordinated by ``setup_mor_simulation.sh``:
+The end-to-end preparation, minimization, solvation, and equilibration workflow is organized
+as a modular, dependency-driven **CMake build system**. Each discrete setup and simulation
+stage is isolated in its own numbered subdirectory with a dedicated ``CMakeLists.txt`` and
+explicit input/output file targets.
+
+Furthermore, **GROMACS** is fetched and built in-source via CMake's ``FetchContent`` module
+directly from `https://github.com/gromacs/gromacs.git` with custom configuration options
+(threaded MPI, OpenMP, GMXAPI, internal FFTW, and Python bindings).
 
 .. code-block:: text
 
-   +-------------------------------------------------------------------------------+
-   |                             SETUP WORKFLOW                                    |
-   +-------------------------------------------------------------------------------+
-   |                                                                               |
-   |   [1] Virtualenv Setup ----> Installs RDKit, ACPYPE, PDBFixer, OpenMM, NumPy  |
-   |            |                                                                  |
-   |   [2] PDB Download    ----> Downloads active MOR complex (PDB 6DDF)           |
-   |            |                                                                  |
-   |   [3] Chain Extraction----> Isolates Chain R (MOR) & Chain D (DAMGO pocket)   |
-   |            |                                                                  |
-   |   [4] Atom Rebuilding ----> PDBFixer repairs missing heavy atoms and loops    |
-   |            |                                                                  |
-   |   [5] Protein Topology----> GROMACS pdb2gmx builds AMBER99SB-ILDN topology   |
-   |            |                                                                  |
-   |   [6] Ligand Docking  ----> RDKit generates 3D conformer & docks into Asp147  |
-   |            |                                                                  |
-   |   [7] Parameterization----> ACPYPE generates GAFF2 ligand parameters          |
-   |            |                                                                  |
-   |   [8] Amphipol Synth  ----> build_amphipol.py synthesizes & parameterizes    |
-   |            |                Amphipol A8-35 with GAFF2                         |
-   |            |                                                                  |
-   |   [9] Complex Assembly----> assemble_system.py wraps 6 A8-35 chains around    |
-   |            |                TM bundle, deduplicates atomtypes, & updates .top |
-   |            |                                                                  |
-   |  [10] Index Generation----> make_index.py builds Binding_Pocket & Ligand ndx  |
-   |            |                                                                  |
-   |  [11] US Window Setup ----> setup_umbrella_windows.py creates 22 window dirs  |
-   |            |                                                                  |
-   |  [12] Grompp Compile  ----> Validates topology & outputs binary run.tpr       |
-   |                                                                               |
-   +-------------------------------------------------------------------------------+
+   +---------------------------------------------------------------------------------------+
+   |                             MODULAR CMAKE PIPELINE                                    |
+   +---------------------------------------------------------------------------------------+
+   |                                                                                       |
+   |   [FetchContent] GROMACS in-source build (target: gmx)                                |
+   |            |                                                                          |
+   |   [01_download_pdb]     ----> Downloads/copies active MOR complex (PDB: 6DDF)         |
+   |            |                                                                          |
+   |   [02_extract_chains]   ----> Isolates Chain R (MOR) & Chain D (DAMGO pocket)         |
+   |            |                                                                          |
+   |   [03_rebuild_atoms]    ----> PDBFixer repairs missing heavy atoms and loops          |
+   |            |                                                                          |
+   |   [04_receptor_topology]----> gmx pdb2gmx builds AMBER99SB-ILDN receptor topology     |
+   |            |                                                                          |
+   |   [05_dock_ligand]      ----> RDKit conformer generation & targeted docking to Asp147|
+   |            |                                                                          |
+   |   [06_ligand_params]    ----> ACPYPE parameterizes docked ligand (GAFF2)              |
+   |            |                                                                          |
+   |   [07_build_amphipol]   ----> Synthesizes & parameterizes Amphipol A8-35 (GAFF2)      |
+   |            |                                                                          |
+   |   [08_assemble_system]  ----> Wraps 6 A8-35 chains around TM bundle & integrates .top|
+   |            |                                                                          |
+   |   [09_em_complex]       ----> In-vacuo steepest descent minimization (gmx grompp/run)|
+   |            |                                                                          |
+   |   [10_solvate]          ----> Dodecahedron box, explicit TIP3P water, 0.15 M NaCl    |
+   |            |                                                                          |
+   |   [11_em_solv]          ----> Solvated & neutralized system energy minimization       |
+   |            |                                                                          |
+   |   [12_make_index]       ----> Generates index groups for pulling & temperature coupling|
+   |            |                                                                          |
+   |   [13_nvt]              ----> NVT equilibration (100 ps, 310 K)                       |
+   |            |                                                                          |
+   |   [14_setup_umbrella]   ----> Prepares 22 harmonic umbrella sampling window templates |
+   |            |                                                                          |
+   |   [15_production]       ----> Copies production MDPs (NPT, Pulling, AWH) & PLUMED data|
+   |                                                                                       |
+   +---------------------------------------------------------------------------------------+
 
 Pipeline Stages Detailed
 ------------------------
 
-1. Python Virtual Environment Setup
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+0. GROMACS In-Source Compilation (FetchContent)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Initializes a local Python virtual environment (``.venv``) and installs dependencies:
+The top-level ``CMakeLists.txt`` declares and populates GROMACS from its official Git
+repository. It builds the ``gmx`` executable target with the following parameters:
 
-- ``rdkit``: Cheminformatics, conformer generation, and geometry optimization.
-- ``acpype``: Automated GAFF2 parameterization for GROMACS.
-- ``pdbfixer`` & ``openmm``: Structural repair and missing loop/atom reconstruction.
-- ``numpy``: Vector algebra for coordinate transformations and frame extraction.
+- ``-DGMX_PYTHON_PACKAGE=ON``: Builds the Python package for ``gmxapi``.
+- ``-DGMXAPI=ON``: Enables GROMACS C++ API and workflow interface.
+- ``-DGMXAPI_BUILD_DOCS=OFF``: Disables extra documentation generation for speed.
+- ``-DGMX_BUILD_OWN_FFTW=ON``: Automatically builds internal FFTW with AVX2 SIMD acceleration.
+- ``-DGMX_TMPI=ON``: Enables built-in thread-MPI for high-performance intra-node scaling.
+- ``-DGMX_OPENMP=ON``: Enables OpenMP multithreading across CPU cores.
+- Automated source patching via ``cmake/patch_gromacs.py`` ensures all subproject paths
+  resolve correctly to ``${Gromacs_SOURCE_DIR}``.
 
-2. Structure Acquisition (PDB: 6DDF)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Structure Acquisition (``01_download_pdb``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Downloads the 3.5 Å resolution cryo-EM structure of the active-state human μ-opioid
-receptor bound to the peptide agonist DAMGO and heterotrimeric Gi protein (PDB ``6DDF``).
+Target: ``01_download_pdb`` (Output: ``build/01_download_pdb/6DDF.pdb``)
 
-3. Receptor and Reference Pocket Extraction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Retrieves the 3.5 Å resolution cryo-EM structure of the active-state human μ-opioid
+receptor bound to DAMGO and Gi protein (PDB ``6DDF``).
 
-The script ``extract_chain.py`` isolates:
+2. Receptor and Reference Pocket Extraction (``02_extract_chains``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``02_extract_chains`` (Outputs: ``receptor.pdb``, ``damgo.pdb``)
+
+Executes ``extract_chain.py`` on ``6DDF.pdb`` to isolate:
 
 - ``receptor.pdb``: Chain R (human μ-opioid receptor).
 - ``damgo.pdb``: Chain D (DAMGO peptide agonist), providing the crystallographic
   reference coordinates of the orthosteric binding pocket.
 
-4. Heavy Atom & Side-Chain Rebuilding
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3. Heavy Atom & Side-Chain Rebuilding (``03_rebuild_atoms``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``03_rebuild_atoms`` (Output: ``receptor_fixed.pdb``)
 
 Invokes ``pdbfixer`` to detect and rebuild missing side-chain heavy atoms and unresolved
-residues within the receptor transmembrane bundle, outputting ``receptor_fixed.pdb``.
+residues within the receptor transmembrane bundle.
 
-5. Receptor Topology Generation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+4. Receptor Topology Generation (``04_receptor_topology``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Executes ``gmx pdb2gmx`` using the **Amber99SB-ILDN** force field and the **TIP3P** water
-model. This step recognizes the critical Cys140–Cys217 disulfide bridge connecting TM3
-to ECL2 and outputs:
+Target: ``04_receptor_topology`` (Outputs: ``conf.gro``, ``topol.top``, ``posre.itp``)
 
-- ``conf.gro``: Receptor coordinate structure file.
-- ``topol.top``: Master GROMACS system topology.
-- ``posre.itp``: Position restraints for heavy backbone atoms.
+Executes the in-source ``gmx pdb2gmx`` binary using the **Amber99SB-ILDN** force field and
+the **TIP3P** water model. Detects the conserved Cys140–Cys217 disulfide bridge connecting
+TM3 to ECL2.
 
-6. Ligand Conformer Generation & Targeted Docking
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+5. Ligand Conformer Generation & Targeted Docking (``05_dock_ligand``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``05_dock_ligand`` (Output: ``ligand_docked.pdb``)
 
 The script ``dock_ligand.py`` reads the isomeric SMILES of 12-bromo-7-hydroxymitragynine:
 
@@ -193,46 +218,89 @@ identifies the basic tertiary amine (N4), and performs a targeted spatial alignm
 - Scans rotational orientations around the anchoring axis to eliminate steric clashes
   with receptor residues, outputting ``ligand_docked.pdb``.
 
-7. Ligand Parameterization (GAFF2 / ACPYPE)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+6. Ligand Parameterization (``06_ligand_params``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-ACPYPE parameterizes the docked ligand using the General Amber Force Field 2 (GAFF2)
-and Gasteiger partial atomic charges, producing ``ligand_docked.acpype/``.
+Target: ``06_ligand_params`` (Outputs: ``ligand_docked.acpype/ligand_docked_GMX.gro``, ``.itp``)
 
-8. Amphipol A8-35 Synthesis & Parameterization
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ACPYPE parameterizes the docked ligand using GAFF2 and Gasteiger partial atomic charges.
+
+7. Amphipol A8-35 Synthesis & Parameterization (``07_build_amphipol``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``07_build_amphipol`` (Outputs: ``apol_single.pdb``, ``apol.acpype/apol_GMX.gro``, ``.itp``)
 
 The script ``build_amphipol.py`` constructs the Amphipol A8-35 chain matching the
 experimental 35:25:40 monomer stoichiometry, embeds and minimizes the 3D conformer,
-and invokes ACPYPE to generate GAFF2 parameters (``apol.acpype/``).
+and invokes ACPYPE to generate GAFF2 parameters.
 
-9. Complex Assembly & Topology Integration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+8. Complex Assembly & Topology Integration (``08_assemble_system``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``08_assemble_system`` (Outputs: ``complex_amphipol.gro``, ``topol.top``, ``extra_atomtypes.itp``, ``ligand.itp``, ``apol.itp``)
 
 The script ``assemble_system.py`` combines all components into ``complex_amphipol.gro``:
 
-- Determines the receptor's transmembrane center of mass (:math:`X=12.01, Y=14.01, Z=12.89\text{ nm}`).
+- Determines the receptor's transmembrane center of mass.
 - Arranges 6 Amphipol A8-35 chains in an annular belt (:math:`R \approx 2.65\text{ nm}`)
   surrounding the 7TM bundle, with alternating :math:`\pm 0.3\text{ nm}` vertical staggering.
   Chains are rotated so that hydrophobic octyl and isopropyl chains face inward and
   hydrophilic carboxylates face outward into water.
-- Integrates the docked ligand coordinates.
-- Modularizes topologies by extracting ``ligand.itp`` and ``apol.itp`` and merges all
-  GAFF2 atomtypes into a deduplicated ``extra_atomtypes.itp``.
+- Integrates docked ligand coordinates.
+- Modularizes topologies (``ligand.itp``, ``apol.itp``) and merges all GAFF2 atomtypes into
+  a deduplicated ``extra_atomtypes.itp``.
 - Updates ``topol.top`` with all inclusions and molecule counts.
 
-10. Index Group Generation
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+9. In-Vacuo Energy Minimization (``09_em_complex``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The script ``make_index.py`` generates ``index.ndx`` containing specific groups:
+Target: ``09_em_complex`` (Outputs: ``complex-em.tpr``, ``complex-em.gro``)
+
+Runs ``gmx grompp`` and ``gmx mdrun`` to minimize the receptor-ligand-amphipol complex
+in vacuo, relaxing initial steric contacts.
+
+10. Explicit Water Solvation & Neutralization (``10_solvate``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``10_solvate`` (Outputs: ``box.gro``, ``solv.gro``, ``ions.tpr``, ``solv-ions.gro``)
+
+- Generates a rhombic dodecahedron periodic box with 1.5 nm clearance (``gmx editconf``).
+- Solvates the system with explicit TIP3P water using ``spc216.gro`` (``gmx solvate``).
+- Neutralizes net charges and adds physiological 0.15 M NaCl counterions (``gmx genion``).
+
+11. Solvated Energy Minimization (``11_em_solv``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``11_em_solv`` (Outputs: ``solv-em.tpr``, ``solv-em.gro``)
+
+Executes steepest descent minimization on the solvated and neutralized system to relax
+water molecules and counterions around the position-restrained solute complex.
+
+12. Index Group Generation (``12_make_index``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``12_make_index`` (Output: ``index.ndx``)
+
+The script ``make_index.py`` reads ``solv-em.gro`` and generates custom GROMACS index groups:
 
 - ``[ Binding_Pocket ]``: C-alpha atoms of orthosteric pocket residues (Asp147, Tyr148,
   Met151, Trp293, Val300, Tyr326).
 - ``[ Ligand ]``: All atoms of 12-bromo-7-hydroxymitragynine.
-- ``[ Solute_Complex ]``: All protein, amphipol, and ligand atoms for temperature coupling.
+- ``[ Solute_Complex ]``: Receptor, amphipols, and ligand for temperature coupling.
+- ``[ Water_and_ions ]``: Solvent and counterions.
 
-11. Umbrella Sampling Window Initialization
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+13. NVT Equilibration (``13_nvt``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``13_nvt`` (Outputs: ``solv-nvt.tpr``, ``solv-nvt.gro``)
+
+Performs 100 ps of NVT equilibration at 310 K using the V-rescale thermostat, relaxing
+solvent and amphipol chains around the restrained receptor and ligand.
+
+14. Umbrella Sampling Window Initialization (``14_setup_umbrella``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Target: ``14_setup_umbrella`` (Output: ``umbrella_setup.done``)
 
 The script ``setup_umbrella_windows.py`` initializes 22 template directories across the
 reaction coordinate range:
@@ -244,201 +312,189 @@ reaction coordinate range:
 Each window folder receives a customized ``umbrella.mdp`` with the appropriate reference
 distance ``pull-coord1-init = <xi_i>``.
 
-12. Binary Compilation & Validation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+15. Production Simulation Templates (``15_production``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Compiles ``run.tpr`` using ``gmx grompp`` and ``em.mdp`` to confirm zero topology syntax
-errors, correct atom exclusions, and charge consistency.
+Target: ``15_production`` (Output: ``production_templates.done``)
 
-Simulation Protocols
-====================
+Stages simulation parameter templates (``npt.mdp``, ``pull.mdp``, ``awh.mdp``, ``md.mdp``)
+and PLUMED collective variable definitions (``plumed.dat``, ``plumed_binding.dat``).
 
-1. Energy Minimization (``em.mdp``)
------------------------------------
+Simulation Protocols & CMake Targets
+====================================
+
+Each simulation phase corresponds to a discrete CMake target that automatically satisfies
+all upstream dependencies before execution.
+
+1. Complex In-Vacuo Minimization (``09_em_complex``)
+----------------------------------------------------
 
 Performs steepest descent minimization (:math:`F_{\text{max}} < 1000.0\text{ kJ/mol/nm}`)
-to relax any remaining contact overlaps between the receptor, ligand, and amphipol belt:
+on the dry receptor-ligand-amphipol assembly:
 
 .. code-block:: bash
 
-   gmx mdrun -v -deffnm em
+   cmake --build build --target 09_em_complex
 
-2. Explicit Water Solvation & Neutralization
---------------------------------------------
+2. Explicit Water Solvation & Neutralization (``10_solvate``)
+-------------------------------------------------------------
 
-The complex is solvated using an explicit 3-site water model (TIP3P) and neutralized
-with physiological counterions (0.15 M NaCl).
-
-Explicit Water Mechanics in GROMACS:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-When running ``gmx solvate``:
-
-- **``-cp box.gro`` (Configuration Protein/Solute)**: Specifies the solute structure
-  containing the receptor, docked ligand, and amphipol belt.
-- **``-cs spc216.gro`` (Configuration Solvent)**: Specifies the explicit solvent template.
-  GROMACS bundles pre-equilibrated coordinate lattices in its shared library directory
-  (``$GMXDATA/top/``). You **do not** need to download or provide external water PDB/GRO files;
-  GROMACS resolves ``spc216.gro`` automatically from its installation path. (If ``-cs`` is
-  omitted, GROMACS defaults to ``spc216.gro``).
-- **Model Parameter Inheritance**: While ``spc216.gro`` provides the spatial 3-site coordinate
-  geometry, the actual interaction parameters (charges, bond lengths, angles, and Lennard-Jones
-  coefficients) are inherited from the ``#include "amber99sb-ildn.ff/tip3p.itp"`` directive
-  configured in ``topol.top`` during receptor preparation (``pdb2gmx -water tip3p``).
-- **Alternative Explicit Models**: If using a 4-site model (e.g., TIP4P or TIP4P-Ew) or 5-site
-  model (TIP5P), pass the corresponding bundled coordinate file: ``-cs tip4p.gro`` or ``-cs tip5p.gro``.
-
-Execution Commands:
-~~~~~~~~~~~~~~~~~~~
+The complex is embedded in a rhombic dodecahedron periodic box (1.5 nm buffer) and
+solvated with explicit TIP3P water (using GROMACS's bundled ``spc216.gro`` solvent lattice)
+and neutralized with 0.15 M NaCl:
 
 .. code-block:: bash
 
-   # Step A: Define periodic boundary box with 1.5 nm clearance for ligand unbinding
-   gmx editconf -f complex_amphipol.gro -o box.gro -c -d 1.5 -bt dodecahedron
+   cmake --build build --target 10_solvate
 
-   # Step B: Solvate with explicit 3-site water (updates [ molecules ] in topol.top)
-   gmx solvate -cp box.gro -cs spc216.gro -o solv.gro -p topol.top
+3. Solvated Energy Minimization (``11_em_solv``)
+------------------------------------------------
 
-   # Step C: Compile ionization input
-   gmx grompp -f em.mdp -c solv.gro -p topol.top -o ions.tpr -maxwarn 1
-
-   # Step D: Replace solvent molecules with ions (0.15 M NaCl + counterions for net neutrality)
-   echo "SOL" | gmx genion -s ions.tpr -o solv_ions.gro -p topol.top -pname NA -nname CL -neutral -conc 0.15
-
-   # Step E: Re-minimize the solvated, ionized system to relax water and ion positions
-   gmx grompp -f em.mdp -c solv_ions.gro -p topol.top -o em.tpr
-   gmx mdrun -v -deffnm em
-
-3. NVT and NPT Equilibration (``nvt.mdp``, ``npt.mdp``)
--------------------------------------------------------
-
-Equilibrates the solvent and amphipol belt around the position-restrained receptor and
-ligand heavy atoms:
+Relaxes water molecules and counterions while keeping the protein backbone and ligand
+restrained:
 
 .. code-block:: bash
 
-   # NVT Equilibration (100 ps, 310 K)
-   gmx grompp -f nvt.mdp -c em.gro -r em.gro -p topol.top -n index.ndx -o nvt.tpr
-   gmx mdrun -v -deffnm nvt
+   cmake --build build --target 11_em_solv
 
-   # NPT Equilibration (100 ps, 1 bar, isotropic)
-   gmx grompp -f npt.mdp -c nvt.gro -r nvt.gro -t nvt.cpt -p topol.top -n index.ndx -o npt.tpr
-   gmx mdrun -v -deffnm npt
+4. NVT Equilibration (``13_nvt``)
+---------------------------------
 
-4. Steered Molecular Dynamics (SMD) Pulling (``pull.mdp``)
-----------------------------------------------------------
-
-Pulls the ligand out of the orthosteric binding pocket along the center-of-mass distance
-vector at a pulling rate of :math:`v = 0.002\text{ nm/ps}` over 1000 ps:
+Equilibrates solvent and amphipol chains around the position-restrained receptor and
+ligand at 310 K for 100 ps:
 
 .. code-block:: bash
 
-   gmx grompp -f pull.mdp -c npt.gro -r npt.gro -t npt.cpt -p topol.top -n index.ndx -o pull.tpr
-   gmx mdrun -v -deffnm pull -pf pullf.xvg -px pullx.xvg
+   cmake --build build --target 13_nvt
 
-5. Umbrella Sampling Windows & WHAM Analysis
---------------------------------------------
+5. NPT, Steered Pulling, and Umbrella Sampling
+----------------------------------------------
 
-Extracts frames corresponding to each window reference distance from ``pullx.xvg`` and
-runs production sampling:
+Production parameter templates and collective variables are staged in ``build/15_production/``
+and ``build/14_setup_umbrella/``:
 
-.. code-block:: bash
+- **NPT Equilibration** (``15_production/npt.mdp``): 100 ps, 1 bar isotropic pressure coupling.
+- **Steered MD Pulling** (``15_production/pull.mdp``): Pulls ligand along reaction coordinate
+  at :math:`v = 0.002\text{ nm/ps}` over 1000 ps.
+- **Umbrella Windows** (``14_setup_umbrella/``): 22 sampling windows spaced :math:`0.10\text{ nm}`
+  apart from :math:`\xi = 0.40\text{ nm}` to :math:`2.50\text{ nm}`.
+- **WHAM Analysis**:
+  .. code-block:: bash
 
-   # Extract window starting frames and generate window TPRs
-   python3 setup_umbrella_windows.py
-
-   # For each window (window_0.40 through window_2.50):
-   # cd window_0.40
-   # gmx grompp -f umbrella.mdp -c conf_0.40.gro -r conf_0.40.gro -p ../topol.top -n ../index.ndx -o umbrella.tpr
-   # gmx mdrun -v -deffnm umbrella
-
-   # Calculate binding free energy profile (PMF) via WHAM:
-   gmx wham -ix tpr_files.dat -if pullf_files.dat -o profile.xvg -hist histo.xvg -unit kJ
+     gmx wham -ix tpr_files.dat -if pullf_files.dat -o profile.xvg -hist histo.xvg -unit kJ
 
 File Manifest
 =============
 
 .. list-table::
-   :widths: 25 75
+   :widths: 30 70
    :header-rows: 1
 
-   * - File / Directory
-     - Purpose
+   * - Directory / File
+     - Description
+   * - ``CMakeLists.txt``
+     - Top-level CMake build script fetching GROMACS and orchestrating all 15 stages.
+   * - ``cmake/patch_gromacs.py``
+     - Source adapter script fixing internal GROMACS paths during FetchContent.
    * - ``setup_mor_simulation.sh``
-     - Master automation script executing stages 1 through 12.
+     - Master automation script creating ``.venv`` and running the CMake pipeline.
    * - ``cleanup_mor_simulation.sh``
-     - Cleans generated simulation artifacts and obsolete legacy files.
-   * - ``6DDF.pdb``
-     - Cryo-EM structure of active human μOR complexed with Gi and DAMGO.
-   * - ``extract_chain.py``
-     - Isolates receptor (Chain R) and pocket reference DAMGO (Chain D).
-   * - ``dock_ligand.py``
-     - Generates 3D ligand conformer and performs targeted docking into Asp147.
-   * - ``build_amphipol.py``
-     - Synthesizes and parameterizes Amphipol A8-35 chains using ACPYPE.
-   * - ``assemble_system.py``
-     - Places 6 A8-35 chains around the TM bundle, merges coordinates, and updates topology.
-   * - ``make_index.py``
-     - Builds custom GROMACS index groups for Binding_Pocket and Ligand.
-   * - ``setup_umbrella_windows.py``
-     - Sets up umbrella sampling window directories from pulling trajectory.
-   * - ``complex_amphipol.gro``
-     - Assembled coordinate file (MOR + 12-bromo-7-OH-mitragynine + 6 Amphipols).
-   * - ``extra_atomtypes.itp``
-     - Deduplicated GAFF2 non-bonded atom types for ligand and amphipols.
-   * - ``ligand.itp``
-     - Molecular topology for 12-bromo-7-hydroxymitragynine.
-   * - ``apol.itp``
-     - Molecular topology for Amphipol A8-35.
-   * - ``topol.top``
-     - Master GROMACS topology file for the assembled system.
-   * - ``posre.itp``
-     - Position restraint definitions for receptor backbone and heavy atoms.
-   * - ``em.mdp``
-     - GROMACS parameter file for steepest descent energy minimization.
-   * - ``nvt.mdp``
-     - GROMACS parameter file for 100 ps NVT equilibration at 310 K.
-   * - ``npt.mdp``
-     - GROMACS parameter file for 100 ps NPT equilibration at 1 bar.
-   * - ``pull.mdp``
-     - GROMACS parameter file for steered MD ligand unbinding pulling.
-   * - ``umbrella.mdp``
-     - GROMACS parameter file template for static harmonic umbrella sampling.
-   * - ``plumed_binding.dat``
-     - PLUMED definition for the ligand-binding pocket distance collective variable.
-   * - ``run.tpr``
-     - Portable binary run input compiled and validated by GROMACS grompp.
+     - Cleans build artifacts and generated simulation files.
+   * - ``01_download_pdb/``
+     - Stage 1: Structure acquisition (downloads/copies ``6DDF.pdb``).
+   * - ``02_extract_chains/``
+     - Stage 2: Isolates receptor (Chain R) and DAMGO reference (Chain D) via ``extract_chain.py``.
+   * - ``03_rebuild_atoms/``
+     - Stage 3: Reconstructs missing heavy atoms using PDBFixer.
+   * - ``04_receptor_topology/``
+     - Stage 4: Generates AMBER99SB-ILDN receptor topology via ``gmx pdb2gmx``.
+   * - ``05_dock_ligand/``
+     - Stage 5: Targeted Asp147 docking of 12-bromo-7-OH-mitragynine via ``dock_ligand.py``.
+   * - ``06_ligand_params/``
+     - Stage 6: GAFF2 parameterization using ACPYPE.
+   * - ``07_build_amphipol/``
+     - Stage 7: Amphipol A8-35 polymer synthesis and parameterization via ``build_amphipol.py``.
+   * - ``08_assemble_system/``
+     - Stage 8: System assembly, belt placement, and topology merger via ``assemble_system.py``.
+   * - ``09_em_complex/``
+     - Stage 9: In-vacuo complex energy minimization (``em.mdp``).
+   * - ``10_solvate/``
+     - Stage 10: Box generation, explicit TIP3P solvation, and 0.15 M NaCl ionization.
+   * - ``11_em_solv/``
+     - Stage 11: Energy minimization of the solvated/ionized system (``em.mdp``).
+   * - ``12_make_index/``
+     - Stage 12: Index group generation via ``make_index.py`` and PyMOL helper ``load_ndx.py``.
+   * - ``13_nvt/``
+     - Stage 13: 100 ps NVT thermal equilibration at 310 K (``nvt.mdp``).
+   * - ``14_setup_umbrella/``
+     - Stage 14: Umbrella sampling window initialization via ``setup_umbrella_windows.py``.
+   * - ``15_production/``
+     - Stage 15: Parameter templates (``npt.mdp``, ``pull.mdp``, ``awh.mdp``, ``md.mdp``, PLUMED files).
 
 Prerequisites & Requirements
 ============================
 
-System Binaries:
-----------------
+System Toolchains:
+------------------
 
-- **GROMACS** (version 2021 or higher, built with PLUMED support if using ``plumed_binding.dat``)
-- **AmberTools** (or ACPYPE bundled Amber binaries)
-- **wget** (for automated structure retrieval)
+- **C & C++ Compilers**: GCC 11+ or Clang supporting C++17.
+- **CMake**: Version 3.20 or higher (3.28+ recommended).
+- **Git**: For FetchContent submodule and GROMACS repository retrieval.
+- **OpenMP & MPI Libraries**: Recommended for multithreaded simulation and ``gmxapi`` compatibility.
+- **wget / curl**: For downloading structural databases.
+
+*Note: GROMACS is built automatically in-source by CMake from the official repository.*
 
 Python Dependencies:
 --------------------
 
 Installed automatically into ``.venv`` by ``setup_mor_simulation.sh``:
 
-- ``rdkit``
-- ``acpype``
-- ``pdbfixer``
-- ``openmm``
-- ``numpy``
+- ``rdkit``: Conformer generation and pocket docking geometry.
+- ``acpype``: Automated GAFF2 parameterization for ligands and polymers.
+- ``pdbfixer`` & ``openmm``: Structural repair and missing loop/atom reconstruction.
+- ``numpy``: Coordinate transformations and vector math.
+- ``mpi4py``: Required for GROMACS ``gmxapi`` Python bindings.
+- ``pytest``: Required for GROMACS Python package verification.
 
 Quickstart
 ==========
 
-To run the complete automated setup from scratch:
+Automated Run (Scripted)
+------------------------
+
+Run the master script to install dependencies, configure CMake, and execute the entire pipeline:
 
 .. code-block:: bash
 
    chmod +x setup_mor_simulation.sh
    ./setup_mor_simulation.sh
+
+Native CMake Build Workflow
+---------------------------
+
+Or manage and run the build steps directly with CMake:
+
+.. code-block:: bash
+
+   # 1. Setup virtual environment
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install rdkit acpype pdbfixer openmm numpy mpi4py pytest
+
+   # 2. Configure project out-of-source (CPU default)
+   cmake -B build
+
+   # 3. Configure with GPU compute and custom mdrun offload flags:
+   # (When GMX_GPU is enabled and GMX_MDRUN_GPU_FLAGS is omitted, it defaults to:
+   #  "-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu")
+   cmake -B build -DGMX_GPU=CUDA -DGMX_MDRUN_GPU_FLAGS="-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu"
+
+   # 4. Build a specific stage (e.g., dock ligand, which builds all upstream prerequisites)
+   cmake --build build --target 05_dock_ligand
+
+   # 5. Or execute the entire pipeline
+   cmake --build build --target mor_pipeline
 
 Scientific References
 =====================
