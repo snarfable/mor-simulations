@@ -36,6 +36,8 @@ def assemble_system(
     rec_gro='conf.gro',
     lig_gro='ligand_docked.acpype/ligand_docked_GMX.gro',
     apol_gro='apol.acpype/apol_GMX.gro',
+    lig_itp='ligand_docked.acpype/ligand_docked_GMX.itp',
+    apol_itp='apol.acpype/apol_GMX.itp',
     out_gro='complex_amphipol.gro',
     top_file='topol.top'
 ):
@@ -163,8 +165,8 @@ def assemble_system(
                 mol_lines.append(line)
         return at_dict, mol_lines
 
-    lig_at, lig_mol = parse_itp('ligand_docked.acpype/ligand_docked_GMX.itp')
-    apol_at, apol_mol = parse_itp('apol.acpype/apol_GMX.itp')
+    lig_at, lig_mol = parse_itp(lig_itp)
+    apol_at, apol_mol = parse_itp(apol_itp)
 
     # Deduplicate atomtypes
     merged_at = dict(lig_at)
@@ -228,4 +230,22 @@ def assemble_system(
     print("Master topology topol.top updated successfully.")
 
 if __name__ == '__main__':
-    assemble_system()
+    import argparse
+    parser = argparse.ArgumentParser(description="Assemble MOR-amphipol-ligand complex.")
+    parser.add_argument("--rec-gro", default="conf.gro")
+    parser.add_argument("--lig-gro", default="ligand_docked.acpype/ligand_docked_GMX.gro")
+    parser.add_argument("--apol-gro", default="apol.acpype/apol_GMX.gro")
+    parser.add_argument("--lig-itp", default="ligand_docked.acpype/ligand_docked_GMX.itp")
+    parser.add_argument("--apol-itp", default="apol.acpype/apol_GMX.itp")
+    parser.add_argument("--out-gro", default="complex_amphipol.gro")
+    parser.add_argument("--top-file", default="topol.top")
+    args = parser.parse_args()
+    assemble_system(
+        rec_gro=args.rec_gro,
+        lig_gro=args.lig_gro,
+        apol_gro=args.apol_gro,
+        lig_itp=args.lig_itp,
+        apol_itp=args.apol_itp,
+        out_gro=args.out_gro,
+        top_file=args.top_file
+    )

@@ -75,4 +75,6 @@ def make_index(gro_file='solv-em.gro', out_ndx='index.ndx'):
     print(f"  - Water_and_ions: {len(water_ion_atoms)} atoms")
 
 if __name__ == '__main__':
-    make_index()
+    gro_input = sys.argv[1] if len(sys.argv) > 1 else 'solv-em.gro'
+    out_ndx = sys.argv[2] if len(sys.argv) > 2 else 'index.ndx'
+    make_index(gro_file=gro_input, out_ndx=out_ndx)

@@ -17,7 +17,8 @@ rm -rf clean_pdb.py trim_pdb.py receptor_clean.pdb receptor_trimmed.pdb pdb2gmx*
 
 # 2. Intermediate and generated pipeline files (reproducible via setup_mor_simulation.sh)
 echo "--> Removing generated pipeline files..."
-rm -rf receptor.pdb damgo.pdb receptor_fixed.pdb conf.gro posre.itp topol.top \
+rm -rf build \
+       receptor.pdb damgo.pdb receptor_fixed.pdb conf.gro posre.itp topol.top \
        ligand_docked.pdb ligand_docked.acpype \
        apol_single.pdb apol.acpype \
        complex_amphipol.gro extra_atomtypes.itp ligand.itp apol.itp \

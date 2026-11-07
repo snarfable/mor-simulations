@@ -77,4 +77,6 @@ def setup_windows(pullx_file='pullx.xvg', mdp_template='umbrella.mdp', min_dist=
     print("\nGenerated tpr_files.dat and pullf_files.dat for gmx wham.")
 
 if __name__ == '__main__':
-    setup_windows()
+    pullx = sys.argv[1] if len(sys.argv) > 1 else 'pullx.xvg'
+    mdp = sys.argv[2] if len(sys.argv) > 2 else 'umbrella.mdp'
+    setup_windows(pullx_file=pullx, mdp_template=mdp)

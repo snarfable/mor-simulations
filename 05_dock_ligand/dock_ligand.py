@@ -140,4 +140,10 @@ def dock_ligand(output_pdb='ligand_docked.pdb', damgo_pdb='damgo.pdb', receptor_
     print(f"Optimal rotation: {best_phi} deg (clashes < 1.5 A: {best_clashes}, min contact: {best_min_dist:.2f} A)")
 
 if __name__ == '__main__':
-    dock_ligand()
+    import argparse
+    parser = argparse.ArgumentParser(description="Dock ligand into MOR binding pocket.")
+    parser.add_argument("--damgo", default="damgo.pdb", help="DAMGO reference PDB")
+    parser.add_argument("--receptor", default="receptor_fixed.pdb", help="Receptor PDB")
+    parser.add_argument("--output", default="ligand_docked.pdb", help="Output docked ligand PDB")
+    args = parser.parse_args()
+    dock_ligand(output_pdb=args.output, damgo_pdb=args.damgo, receptor_pdb=args.receptor)

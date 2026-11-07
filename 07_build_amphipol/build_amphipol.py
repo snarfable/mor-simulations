@@ -53,4 +53,5 @@ def build_amphipol(pdb_output='apol_single.pdb'):
 
 if __name__ == '__main__':
     import numpy as np
-    build_amphipol()
+    pdb_out = sys.argv[1] if len(sys.argv) > 1 else 'apol_single.pdb'
+    build_amphipol(pdb_out)

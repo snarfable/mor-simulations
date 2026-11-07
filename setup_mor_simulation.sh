@@ -10,55 +10,13 @@ if [ ! -d ".venv" ]; then
     python3 -m venv .venv
 fi
 source .venv/bin/activate
-pip install --quiet rdkit acpype pdbfixer openmm numpy
+pip install --quiet rdkit acpype pdbfixer openmm numpy mpi4py pytest
 
-echo "=== 2. Downloading Mu-Opioid Receptor Structure (PDB: 6DDF) ==="
-if [ ! -f "6DDF.pdb" ]; then
-    wget -q -c https://files.rcsb.org/download/6DDF.pdb -O 6DDF.pdb
-fi
-
-echo "=== 3. Extracting Chain R (MOR) and Chain D (DAMGO pocket reference) ==="
-python3 extract_chain.py
-
-echo "=== 4. Rebuilding missing heavy atoms using PDBFixer ==="
-pdbfixer receptor.pdb --output=receptor_fixed.pdb --add-atoms=heavy
-
-echo "=== 5. Processing receptor topology with GROMACS pdb2gmx ==="
-gmx pdb2gmx -f receptor_fixed.pdb -o conf.gro -p topol.top -i posre.itp -water tip3p -ff amber99sb-ildn -ignh
-
-echo "=== 6. Generating and docking 12-bromo-7-hydroxymitragynine into orthosteric pocket ==="
-python3 dock_ligand.py
-
-echo "=== 7. Parameterizing docked ligand using ACPYPE (GAFF2) ==="
-acpype -i ligand_docked.pdb -c gas -n 0 -a gaff2 -b ligand_docked
-
-echo "=== 8. Synthesizing and parameterizing Amphipol A8-35 ==="
-python3 build_amphipol.py
-
-echo "=== 9. Assembling MOR-Amphipol-Ligand complex and integrating topologies ==="
-python3 assemble_system.py
-
-echo "=== 10. Generating GROMACS index groups for pulling and umbrella sampling ==="
-python3 make_index.py
-
-echo "=== 11. Initializing umbrella sampling window templates ==="
-python3 setup_umbrella_windows.py
-
-echo "=== 12. Compiling initial simulation binary with gmx grompp ==="
-gmx grompp -f em.mdp -c complex_amphipol.gro -p topol.top -o complex-em.tpr -maxwarn 1
-gmx mdrun -v -deffnm complex-em -s complex-em.tpr
+echo "=== 2. Configuring and executing modular CMake simulation pipeline ==="
+cmake -B build
+cmake --build build --target mor_pipeline
 
 echo "=========================================================================="
 echo " Setup completed successfully! System is ready for solvation & sampling."
 echo "=========================================================================="
-
-echo "=== 13. Generating dodecahedron bounding box and PBCs ==="
-gmx editconf -f complex-em.gro -o box.gro -c -d 1.5 -bt dodecahedron
-gmx solvate -cp box.gro -cs spc216.gro -o solv.gro -p topol.top
-gmx grompp -f em.mdp -c solv.gro -p topol.top -o ions.tpr -maxwarn 1
-echo "SOL" | gmx genion -s ions.tpr -o solv-ions.gro -p topol.top -pname NA -nname CL -neutral -conc 0.15
-gmx grompp -f em.mdp -c solv-ions.gro -p topol.top -o solv-em.tpr
-gmx mdrun -v -deffnm solv-em -s solv-em.tpr
-gmx grompp -f nvt.mdp -c solv-em.gro -p topol.top -o solv-nvt.tpr
-gmx mdrun -v -deffnm solv-nvt -s solv-nvt.tpr
 

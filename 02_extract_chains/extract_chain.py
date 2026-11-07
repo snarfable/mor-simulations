@@ -32,4 +32,7 @@ def extract_chains(pdb_file, receptor_file, pocket_ref_file):
     print(f"Extracted pocket reference DAMGO (Chain D) to {pocket_ref_file}")
 
 if __name__ == '__main__':
-    extract_chains('6DDF.pdb', 'receptor.pdb', 'damgo.pdb')
+    pdb_file = sys.argv[1] if len(sys.argv) > 1 else '6DDF.pdb'
+    receptor_file = sys.argv[2] if len(sys.argv) > 2 else 'receptor.pdb'
+    pocket_ref_file = sys.argv[3] if len(sys.argv) > 3 else 'damgo.pdb'
+    extract_chains(pdb_file, receptor_file, pocket_ref_file)
