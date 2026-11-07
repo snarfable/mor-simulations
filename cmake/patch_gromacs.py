@@ -21,10 +21,16 @@ def patch_gromacs(source_dir):
                 try:
                     with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                    if '${CMAKE_SOURCE_DIR}' in content or '@CMAKE_SOURCE_DIR@' in content:
-                        new_content = (content
+                    new_content = content
+                    if '${CMAKE_SOURCE_DIR}' in new_content or '@CMAKE_SOURCE_DIR@' in new_content:
+                        new_content = (new_content
                                        .replace('${CMAKE_SOURCE_DIR}', '${Gromacs_SOURCE_DIR}')
                                        .replace('@CMAKE_SOURCE_DIR@', '@Gromacs_SOURCE_DIR@'))
+                    if '${CMAKE_BINARY_DIR}' in new_content or '@CMAKE_BINARY_DIR@' in new_content:
+                        new_content = (new_content
+                                       .replace('${CMAKE_BINARY_DIR}', '${Gromacs_BINARY_DIR}')
+                                       .replace('@CMAKE_BINARY_DIR@', '@Gromacs_BINARY_DIR@'))
+                    if new_content != content:
                         with open(fpath, 'w', encoding='utf-8') as f:
                             f.write(new_content)
                         patch_count += 1
