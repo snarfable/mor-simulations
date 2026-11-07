@@ -494,10 +494,14 @@ Or manage and run the build steps directly with CMake:
    #  "-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu")
    cmake -B build -DGMX_GPU=CUDA -DGMX_MDRUN_GPU_FLAGS="-nb gpu -pme gpu -pmefft gpu -bonded gpu -update gpu"
 
-   # 5. Build a specific stage (e.g., dock ligand, which builds all upstream prerequisites)
+   # 5. Optionally customize flags passed to gmx grompp (e.g. increase allowed warning threshold):
+   # (Defaults to "-maxwarn 1")
+   cmake -B build -DGMX_GROMPP_EXTRA_FLAGS="-maxwarn 2"
+
+   # 6. Build a specific stage (e.g., dock ligand, which builds all upstream prerequisites)
    cmake --build build --target 05_dock_ligand
 
-   # 6. Or execute the entire pipeline
+   # 7. Or execute the entire pipeline
    cmake --build build --target mor_pipeline
 
 Scientific References

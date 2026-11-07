@@ -16,7 +16,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy "${POSRE_ITP_OUT}" "${CMAKE_CURRENT_BINARY_DIR}/posre.itp"
     COMMAND ${GMX_EXECUTABLE} editconf -f "${COMPLEX_EM_GRO}" -o "${BOX_GRO}" -c -d 1.5 -bt dodecahedron
     COMMAND ${GMX_EXECUTABLE} solvate -cp "${BOX_GRO}" -cs spc216.gro -o "${SOLV_GRO}" -p "${SOLV_TOP}"
-    COMMAND ${GMX_EXECUTABLE} grompp -f "${CMAKE_CURRENT_SOURCE_DIR}/em.mdp" -c "${SOLV_GRO}" -p "${SOLV_TOP}" -o "${IONS_TPR}" -maxwarn 1
+    COMMAND ${GMX_EXECUTABLE} grompp -f "${CMAKE_CURRENT_SOURCE_DIR}/em.mdp" -c "${SOLV_GRO}" -p "${SOLV_TOP}" -o "${IONS_TPR}" ${GMX_GROMPP_EXTRA_ARGS}
     COMMAND echo SOL | ${GMX_EXECUTABLE} genion -s ${IONS_TPR} -o ${SOLV_IONS_GRO} -p ${SOLV_TOP} -pname NA -nname CL -neutral -conc 0.15
     DEPENDS 09_em_complex
             "${COMPLEX_EM_GRO}" "${ASSEMBLED_TOP}" "${EXTRA_ATOMTYPES_ITP}"

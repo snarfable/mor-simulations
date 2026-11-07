@@ -81,6 +81,10 @@ endif()
 
 separate_arguments(GMX_MDRUN_GPU_ARGS NATIVE_COMMAND "${GMX_MDRUN_GPU_FLAGS}")
 
+# Grompp extra flags (e.g. -maxwarn) passed only to calls to gmx grompp
+set(GMX_GROMPP_EXTRA_FLAGS "-maxwarn 1" CACHE STRING "Extra command-line flags to pass only to gmx grompp (e.g. '-maxwarn 2')")
+separate_arguments(GMX_GROMPP_EXTRA_ARGS NATIVE_COMMAND "${GMX_GROMPP_EXTRA_FLAGS}")
+
 FetchContent_Declare(
     gromacs
     GIT_REPOSITORY https://github.com/gromacs/gromacs.git
@@ -97,6 +101,7 @@ message(STATUS "Using PDBFixer:          ${PDBFIXER_EXECUTABLE}")
 message(STATUS "Using ACPYPE:            ${ACPYPE_EXECUTABLE}")
 message(STATUS "GMX_GPU:                 ${GMX_GPU}")
 message(STATUS "GMX_MDRUN_GPU_FLAGS:     ${GMX_MDRUN_GPU_FLAGS}")
+message(STATUS "GMX_GROMPP_EXTRA_FLAGS:  ${GMX_GROMPP_EXTRA_FLAGS}")
 
 # Add step subdirectories in pipeline order
 add_subdirectory(01_download_pdb)
